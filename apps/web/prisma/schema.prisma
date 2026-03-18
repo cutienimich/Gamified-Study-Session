@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  bio           String?
+  exp           Int       @default(0)
+  level         Int       @default(1)
+  fbId          String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  topics               Topic[]
+  scores               Score[]
+  sentChallenges       Challenge[]       @relation("Challenger")
+  receivedChallenges   Challenge[]       @relation("Challenged")
+  roomParticipants     RoomParticipant[]
+  following            Follow[]          @relation("Follower")
+  followers            Follow[]          @relation("Following")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Topic {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  subject     String
+  fileUrl     String?
+  fileType    String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  cards       Card[]
+  rooms       Room[]
+  scores      Score[]
+}
+
+model Card {
+  id         String  @id @default(cuid())
+  question   String
+  answer     String
+  hint       String?
+  difficulty Int     @default(1)
+  order      Int
+
+  topicId    String
+  topic      Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model Room {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  status    RoomStatus @default(WAITING)
+  mode      GameMode
+  createdAt DateTime   @default(now())
+  endedAt   DateTime?
+
+  topicId      String
+  topic        Topic             @relation(fields: [topicId], references: [id])
+  hostId       String
+  participants RoomParticipant[]
+  challenges   Challenge[]
+}
+
+model RoomParticipant {
+  id       String   @id @default(cuid())
+  score    Int      @default(0)
+  joinedAt DateTime @default(now())
+
+  roomId   String
+  room     Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+}
+
+model Score {
+  id        String   @id @default(cuid())
+  points    Int
+  expGained Int
+  timeTaken Int
+  mode      GameMode
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id])
+}
+
+model Challenge {
+  id        String          @id @default(cuid())
+  status    ChallengeStatus @default(PENDING)
+  createdAt DateTime        @default(now())
+
+  challengerId String
+  challenger   User   @relation("Challenger", fields: [challengerId], references: [id])
+  challengedId String
+  challenged   User   @relation("Challenged", fields: [challengedId], references: [id])
+  roomId       String?
+  room         Room?  @relation(fields: [roomId], references: [id])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id])
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+enum RoomStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+enum GameMode {
+  SOLO
+  MULTIPLAYER
+}
+
+enum ChallengeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+}
