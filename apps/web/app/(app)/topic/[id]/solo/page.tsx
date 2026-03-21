@@ -91,7 +91,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
   // Shuffle choices ONLY when card index changes — not on every render
   useEffect(() => {
     const card = cards[currentIndex]
-    if (!card || card.type !== 'MULTIPLE_CHOICE') {
+    if (!card || card.cardType !== 'MULTIPLE_CHOICE') {
       setShuffledChoices([])
       return
     }
