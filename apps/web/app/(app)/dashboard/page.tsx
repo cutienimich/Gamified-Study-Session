@@ -103,8 +103,12 @@ export default function DashboardPage() {
 }
 
 // ── Public Tab ──────────────────────────────────────────────────
-function PublicTab({ searchQuery, onTopicClick }: { searchQuery: string; onTopicClick: (id: string) => void }) {
-  const [topics,          setTopics]          = useState<any[] | null>(null)
+function PublicTab({ searchQuery, onTopicClick, topics, setTopics }: { 
+  searchQuery: string
+  onTopicClick: (id: string) => void
+  topics: any[] | null
+  setTopics: (topics: any[]) => void
+}) {
   const [loading,         setLoading]         = useState(false)
   const [selectedSubject, setSelectedSubject] = useState('All')
   const [sort,            setSort]            = useState<Sort>('recent')
