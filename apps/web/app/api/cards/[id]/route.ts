@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
 import { prisma } from '@/lib/db/prisma'
-import { CardType } from '@prisma/client'
 
 async function verifyCardOwnership(cardId: string, userId: string) {
   const card = await prisma.card.findUnique({
