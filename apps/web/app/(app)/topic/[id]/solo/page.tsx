@@ -16,7 +16,7 @@ interface Card {
   answer: string
   hint?: string | null
   difficulty: number
-  type: 'IDENTIFICATION' | 'MULTIPLE_CHOICE'
+  cardType: 'IDENTIFICATION' | 'MULTIPLE_CHOICE'
   choices: string[]
   order: number
 }
@@ -326,7 +326,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
                   {currentCard.difficulty === 1 ? 'Easy' : currentCard.difficulty === 2 ? 'Medium' : 'Hard'}
                 </span>
                 <span className="text-xs text-gray-600">
-                  {currentCard.type === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Identification'}
+                  {currentCard.cardType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Identification'}
                 </span>
               </div>
 
@@ -338,7 +338,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
               {/* Answer area — playing state */}
               {gameState === 'playing' && (
                 <>
-                  {currentCard.type === 'IDENTIFICATION' ? (
+                  {currentCard.cardType === 'IDENTIFICATION' ? (
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
