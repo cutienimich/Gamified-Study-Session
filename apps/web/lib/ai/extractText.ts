@@ -44,7 +44,7 @@ async function extractWithLlamaParse(
 
   // Step 1 — Upload file
   const formData = new FormData()
-  const blob = new Blob([buffer], { type: mimeType })
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType })
   formData.append('file', blob, fileName)
   formData.append('language', 'en')
   formData.append('parsing_instruction', 'Extract all text content. Include all paragraphs, bullet points, headings, and slide content.')

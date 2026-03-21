@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
 import { prisma } from '@/lib/db/prisma'
+import {Like} from '@prisma/client'
 import { generateFlashCards } from '@/lib/ai/generateCards'
 import { extractTextFromFile } from '@/lib/ai/extractText'
 
@@ -31,21 +32,21 @@ export async function GET(req: NextRequest) {
       },
       include: {
         author: { select: { id: true, name: true, image: true } },
-        _count:  { select: { cards: true, likes: true } },
-        likes:   userId ? { where: { userId } } : false,
+        _count: { select: { cards: true } },
+        like:   userId ? { where: { userId } } : false,
       },
       orderBy: sort === 'popular'
         ? { likes: { _count: 'desc' } }
         : { createdAt: 'desc' },
     })
 
-    const shaped = topics.map(topic => ({
-      ...topic,
-      likeCount: topic._count.likes,
-      liked:     userId ? (topic.likes as any[])?.length > 0 : false,
-      likes:     undefined,
-    }))
-
+  const shaped = topics.map(topic => ({
+    ...topic,
+    likeCount: (topic.likes as any[])?.length || 0,
+    liked:     userId ? (topic.likes as any[])?.length > 0 : false,
+    likes:     undefined,
+  }))
+  
     return NextResponse.json({ topics: shaped })
   } catch (err) {
     console.error('TOPICS GET ERROR:', err)

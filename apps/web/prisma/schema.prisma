@@ -88,11 +88,13 @@ model Card {
   hint       String?
   difficulty Int      @default(1)
   order      Int
-  type       CardType @default(IDENTIFICATION)
+  cardType   CardType @default(IDENTIFICATION) @map("type")
   choices    String[] @default([])   // para sa multiple choice
 
   topicId    String
   topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@map("Card")
 }
 
 enum CardType {

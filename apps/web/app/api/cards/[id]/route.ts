@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
 import { prisma } from '@/lib/db/prisma'
+import { CardType } from '@prisma/client'
 
 async function verifyCardOwnership(cardId: string, userId: string) {
   const card = await prisma.card.findUnique({
@@ -26,7 +27,7 @@ export async function PATCH(
     const card = await verifyCardOwnership(params.id, (session.user as any).id)
     if (!card) return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 })
 
-    const { question, answer, hint, difficulty, type, choices } = await req.json()
+    const { question, answer, hint, difficulty, cardType, choices } = await req.json()
 
     const updated = await prisma.card.update({
       where: { id: params.id },
@@ -35,7 +36,7 @@ export async function PATCH(
         answer,
         hint:       hint || null,
         difficulty: difficulty || 1,
-        type:       type || 'IDENTIFICATION',
+        cardType:   (cardType as CardType) || CardType.IDENTIFICATION,
         choices:    choices || [],
       },
     })

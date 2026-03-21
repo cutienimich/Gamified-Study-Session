@@ -1,5 +1,4 @@
 'use client'
-
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
@@ -215,8 +214,13 @@ function PublicTab({ searchQuery, onTopicClick, topics, setTopics }: {
 }
 
 // ── My Topics Tab ───────────────────────────────────────────────
-function MyTopicsTab({ session, searchQuery, onTopicClick }: { session: any; searchQuery: string; onTopicClick: (id: string) => void }) {
-  const [topics,     setTopics]     = useState<any[]>([])
+function MyTopicsTab({ session, searchQuery, onTopicClick, topics, setTopics }: { 
+  session: any
+  searchQuery: string
+  onTopicClick: (id: string) => void
+  topics: any[] | null
+  setTopics: React.Dispatch<React.SetStateAction<any[] | null>>
+}) {
   const [loading,    setLoading]    = useState(true)
   const [showUpload, setShowUpload] = useState(false)
 
@@ -240,7 +244,7 @@ function MyTopicsTab({ session, searchQuery, onTopicClick }: { session: any; sea
   useEffect(() => { fetchTopics() }, [fetchTopics])
 
   function handleDelete(id: string) {
-    setTopics(prev => prev.filter(t => t.id !== id))
+    setTopics((topics || []).filter(t => t.id !== id))
   }
 
   return (

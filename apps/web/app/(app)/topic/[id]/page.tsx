@@ -20,6 +20,8 @@ interface Card {
   hint?: string | null
   difficulty: number
   order: number
+  type: 'IDENTIFICATION' | 'MULTIPLE_CHOICE'
+  choices: string[]
 }
 
 interface Topic {
