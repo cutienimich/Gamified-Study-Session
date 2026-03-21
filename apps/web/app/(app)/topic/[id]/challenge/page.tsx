@@ -333,7 +333,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
               {/* Answer area */}
               {gameState === 'playing' && (
                 <>
-                  {currentCard.type === 'IDENTIFICATION' ? (
+                  {(currentCard.type === 'IDENTIFICATION' || !currentCard.type) ? (
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
