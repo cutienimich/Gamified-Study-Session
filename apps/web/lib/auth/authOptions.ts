@@ -1,9 +1,14 @@
 import { NextAuthOptions } from 'next-auth'
 import FacebookProvider from 'next-auth/providers/facebook'
+import GoogleProvider from 'next-auth/providers/google'
 import { prisma } from '@/lib/db/prisma'
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     FacebookProvider({
       clientId:     process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
@@ -11,7 +16,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       try {
         await prisma.user.upsert({
           where:  { email: user.email! },
@@ -29,23 +34,23 @@ export const authOptions: NextAuthOptions = {
       return true
     },
 
-      async session({ session, token }) {
-    if (session.user && token.sub) {
-      try {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: session.user.email! },
-        })
-        if (dbUser) {
-          (session.user as any).id    = dbUser.id
-          ;(session.user as any).exp  = dbUser.exp
-          ;(session.user as any).level = dbUser.level
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: session.user.email! },
+          })
+          if (dbUser) {
+            (session.user as any).id    = dbUser.id
+            ;(session.user as any).exp  = dbUser.exp
+            ;(session.user as any).level = dbUser.level
+          }
+        } catch (err) {
+          console.error('Session error:', err)
         }
-      } catch (err) {
-        console.error('Session error:', err)
       }
-    }
-    return session
-  },
+      return session
+    },
 
     jwt({ token, user }) {
       if (user) token.sub = user.id
