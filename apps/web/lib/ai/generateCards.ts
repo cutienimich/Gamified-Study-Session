@@ -13,7 +13,7 @@ export async function generateFlashCards(
   extractedText: string,
   topicTitle: string,
 ): Promise<GeneratedCard[]> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
   const prompt = `
 You are an expert study card creator. Based on the following content from "${topicTitle}", 

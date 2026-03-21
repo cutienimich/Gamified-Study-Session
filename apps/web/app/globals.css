@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+  }
+
+  * {
+   /* @apply border-border;*/
+  }
+
+  body {
+    @apply bg-gray-950 text-white antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-800 hover:bg-gray-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 active:scale-95;
+  }
+
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-xl p-4;
+  }
+
+  .input {
+    @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors w-full;
+  }
+
+  /* EXP bar */
+  .exp-bar {
+    @apply h-2 bg-gray-700 rounded-full overflow-hidden;
+  }
+  .exp-bar-fill {
+    @apply h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500;
+  }
+
+  /* Flash card */
+  .flash-card {
+    @apply bg-gray-900 border-2 border-gray-700 rounded-2xl p-8 min-h-[200px] flex items-center justify-center text-center cursor-pointer transition-all duration-200 hover:border-indigo-500;
+  }
+
+  /* Game mode cards */
+  .mode-card {
+    @apply card cursor-pointer hover:border-indigo-500 hover:bg-gray-800 transition-all duration-200 active:scale-95 flex flex-col items-center gap-3 py-8;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop {
+  0%   { transform: scale(0.95); opacity: 0; }
+  70%  { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes handRaise {
+  0%   { transform: translateY(0) rotate(0deg); }
+  25%  { transform: translateY(-8px) rotate(-10deg); }
+  75%  { transform: translateY(-8px) rotate(10deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+.animate-fade-in  { animation: fadeIn 0.3s ease-out forwards; }
+.animate-pop      { animation: pop 0.3s ease-out forwards; }
+.animate-hand     { animation: handRaise 0.4s ease-in-out; }

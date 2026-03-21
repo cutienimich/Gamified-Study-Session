@@ -3,53 +3,120 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
 import { prisma } from '@/lib/db/prisma'
 import { generateFlashCards } from '@/lib/ai/generateCards'
-import mammoth from 'mammoth'
+import { extractTextFromFile } from '@/lib/ai/extractText'
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  const { searchParams } = new URL(req.url)
+  const type    = searchParams.get('type')    || 'public'
+  const search  = searchParams.get('q')       || ''
+  const subject = searchParams.get('subject') || ''
+  const sort    = searchParams.get('sort')    || 'recent'
+  const userId  = (session?.user as any)?.id
+
+  try {
+    const topics = await prisma.topic.findMany({
+      where: {
+        ...(type === 'mine'
+          ? { authorId: userId }
+          : { isPublic: true }
+        ),
+        ...(search && {
+          OR: [
+            { title:   { contains: search, mode: 'insensitive' } },
+            { subject: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+        ...(subject && { subject: { equals: subject, mode: 'insensitive' } }),
+      },
+      include: {
+        author: { select: { id: true, name: true, image: true } },
+        _count:  { select: { cards: true, likes: true } },
+        likes:   userId ? { where: { userId } } : false,
+      },
+      orderBy: sort === 'popular'
+        ? { likes: { _count: 'desc' } }
+        : { createdAt: 'desc' },
+    })
+
+    const shaped = topics.map(topic => ({
+      ...topic,
+      likeCount: topic._count.likes,
+      liked:     userId ? (topic.likes as any[])?.length > 0 : false,
+      likes:     undefined,
+    }))
+
+    return NextResponse.json({ topics: shaped })
+  } catch (err) {
+    console.error('TOPICS GET ERROR:', err)
+    return NextResponse.json({ error: 'Failed to fetch topics' }, { status: 500 })
+  }
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   try {
     const formData = await req.formData()
-    const file     = formData.get('file') as File
+    const file     = formData.get('file') as File | null
     const title    = formData.get('title') as string
     const subject  = formData.get('subject') as string
+    const isPublic = formData.get('isPublic') === 'true'
 
-    if (!file || !title || !subject) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    if (!title || !subject) {
+      return NextResponse.json({ error: 'Title and subject are required' }, { status: 400 })
     }
 
-    // Extract text from uploaded file
-    let extractedText = ''
-    const buffer = Buffer.from(await file.arrayBuffer())
+    let generatedCards: any[] = []
+    let fileUrl  = ''
+    let fileType = ''
 
-    if (file.name.endsWith('.docx') || file.name.endsWith('.pptx')) {
-      const result = await mammoth.extractRawText({ buffer })
-      extractedText = result.value
-    } else if (file.type === 'text/plain') {
-      extractedText = buffer.toString('utf-8')
-    } else {
-      return NextResponse.json({ error: 'Unsupported file type. Use .docx, .pptx, or .txt' }, { status: 400 })
+    if (file && file.size > 0) {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      fileType = file.type
+
+      console.log(`Extracting text from: ${file.name}`)
+      let extractedText = ''
+      try {
+        extractedText = await extractTextFromFile(buffer, file.name, file.type)
+        console.log(`Extracted ${extractedText.length} characters`)
+      } catch (extractErr: any) {
+        return NextResponse.json(
+          { error: `Failed to extract text: ${extractErr?.message}` },
+          { status: 400 }
+        )
+      }
+
+      if (extractedText.trim().length < 20) {
+        return NextResponse.json(
+          { error: 'Not enough text content to generate cards.' },
+          { status: 400 }
+        )
+      }
+
+      try {
+        const { uploadFile } = await import('@/lib/storage/supabase-storage')
+        fileUrl = await uploadFile(buffer, file.name, file.type, 'topics')
+      } catch (uploadErr: any) {
+        console.error('UPLOAD ERROR:', uploadErr?.message)
+      }
+
+      console.log('Generating flashcards with Gemini...')
+      generatedCards = await generateFlashCards(extractedText, title)
+      console.log(`Generated ${generatedCards.length} cards`)
     }
 
-    if (extractedText.trim().length < 50) {
-      return NextResponse.json({ error: 'File has too little text content' }, { status: 400 })
-    }
-
-    // TODO: Upload file to R2 and get fileUrl
-    const fileUrl = '' // placeholder
-
-    // Generate cards using Gemini
-    const generatedCards = await generateFlashCards(extractedText, title)
-
-    // Save topic + cards to DB
     const topic = await prisma.topic.create({
       data: {
         title,
         subject,
         fileUrl,
-        fileType: file.type,
-        authorId: session.user.id,
+        fileType,
+        isPublic,
+        authorId: (session.user as any).id,
         cards: {
           create: generatedCards.map((card, i) => ({
             question:   card.question,
@@ -60,34 +127,17 @@ export async function POST(req: NextRequest) {
           })),
         },
       },
-      include: { cards: true },
+      include: {
+        _count: { select: { cards: true } },
+      },
     })
 
     return NextResponse.json({ topic })
-  } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Failed to process file' }, { status: 500 })
+  } catch (err: any) {
+    console.error('TOPIC CREATE ERROR:', err?.message || err)
+    return NextResponse.json(
+      { error: err?.message || 'Failed to create topic' },
+      { status: 500 }
+    )
   }
-}
-
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const search  = searchParams.get('q') || ''
-  const subject = searchParams.get('subject') || ''
-
-  const topics = await prisma.topic.findMany({
-    where: {
-      isPublic: true,
-      ...(search  && { OR: [{ title: { contains: search, mode: 'insensitive' } }, { subject: { contains: search, mode: 'insensitive' } }] }),
-      ...(subject && { subject: { equals: subject, mode: 'insensitive' } }),
-    },
-    include: {
-      author: { select: { id: true, name: true, image: true, level: true } },
-      _count: { select: { cards: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  })
-
-  return NextResponse.json({ topics })
 }

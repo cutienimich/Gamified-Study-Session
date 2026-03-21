@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -30,6 +31,8 @@ model User {
   roomParticipants     RoomParticipant[]
   following            Follow[]          @relation("Follower")
   followers            Follow[]          @relation("Following")
+  likes                Like[]
+  notes                Note[]
 }
 
 model Account {
@@ -74,18 +77,27 @@ model Topic {
   cards       Card[]
   rooms       Room[]
   scores      Score[]
+  likes       Like[]
+  notes       Note[]
 }
 
 model Card {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   question   String
   answer     String
   hint       String?
-  difficulty Int     @default(1)
+  difficulty Int      @default(1)
   order      Int
+  type       CardType @default(IDENTIFICATION)
+  choices    String[] @default([])   // para sa multiple choice
 
   topicId    String
-  topic      Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+enum CardType {
+  IDENTIFICATION
+  MULTIPLE_CHOICE
 }
 
 model Room {
@@ -170,4 +182,31 @@ enum ChallengeStatus {
   ACCEPTED
   DECLINED
   COMPLETED
+}
+
+
+model Like {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  content   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
 }
