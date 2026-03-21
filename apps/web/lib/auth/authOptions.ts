@@ -13,7 +13,6 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        // Upsert user sa database
         await prisma.user.upsert({
           where:  { email: user.email! },
           update: { name: user.name, image: user.image },
@@ -30,9 +29,9 @@ export const authOptions: NextAuthOptions = {
       return true
     },
 
-    async session({ session, token }) {
-      if (session.user && token.sub) {
-        // Kuhanin ang actual DB user id
+      async session({ session, token }) {
+    if (session.user && token.sub) {
+      try {
         const dbUser = await prisma.user.findUnique({
           where: { email: session.user.email! },
         })
@@ -41,9 +40,12 @@ export const authOptions: NextAuthOptions = {
           ;(session.user as any).exp  = dbUser.exp
           ;(session.user as any).level = dbUser.level
         }
+      } catch (err) {
+        console.error('Session error:', err)
       }
-      return session
-    },
+    }
+    return session
+  },
 
     jwt({ token, user }) {
       if (user) token.sub = user.id
