@@ -1,8 +1,27 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**"] },
-    "dev":   { "cache": false, "persistent": true },
-    "lint":  { "dependsOn": ["^lint"] }
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "NEXTAUTH_URL",
+        "NEXTAUTH_SECRET",
+        "FACEBOOK_CLIENT_ID",
+        "FACEBOOK_CLIENT_SECRET",
+        "GEMINI_API_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_KEY",
+        "REDIS_URL",
+        "REDIS_TOKEN",
+        "LLAMA_CLOUD_API_KEY",
+        "NEXT_PUBLIC_SOCKET_URL"
+      ]
+    },
+    "dev":  { "cache": false, "persistent": true },
+    "lint": { "dependsOn": ["^lint"] }
   }
 }
