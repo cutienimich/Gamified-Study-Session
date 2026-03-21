@@ -321,7 +321,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
                   {currentCard.difficulty === 1 ? 'Easy' : currentCard.difficulty === 2 ? 'Medium' : 'Hard'}
                 </span>
                 <span className="text-xs text-gray-600">
-                  {currentCard.cardType === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Identification'}
+                  {currentCard.type === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Identification'}
                 </span>
               </div>
 
@@ -333,7 +333,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
               {/* Answer area */}
               {gameState === 'playing' && (
                 <>
-                  {(currentCard.cardType === 'IDENTIFICATION' || !currentCard.cardType) ? (
+                  {(currentCard.type === 'IDENTIFICATION' || !currentCard.type) ? (
                     <div className="flex gap-2">
                       <input
                         ref={inputRef}
