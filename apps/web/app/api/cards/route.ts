@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         answer,
         hint:       hint || null,
         difficulty: difficulty || 1,
-        cardType:   (cardType as CardType) || CardType.IDENTIFICATION,
+        cardType: cardType || 'IDENTIFICATION',
         choices:    choices || [],
         order:      (lastCard?.order ?? -1) + 1,
       },

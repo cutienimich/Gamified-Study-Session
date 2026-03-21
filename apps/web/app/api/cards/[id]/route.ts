@@ -35,7 +35,7 @@ export async function PATCH(
         answer,
         hint:       hint || null,
         difficulty: difficulty || 1,
-        cardType:   (cardType as CardType) || CardType.IDENTIFICATION,
+        cardType: cardType || 'IDENTIFICATION',
         choices:    choices || [],
       },
     })
