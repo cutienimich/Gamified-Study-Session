@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
-import { Gamepad2, Search, LogOut, User, ChevronDown } from 'lucide-react'
+import { Gamepad2, Search, LogOut, User, ChevronDown, X } from 'lucide-react'
 import Image from 'next/image'
 
 interface NavbarProps {
@@ -13,9 +13,11 @@ interface NavbarProps {
 export default function Navbar({ onSearch }: NavbarProps) {
   const { data: session } = useSession()
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [dropdownOpen,  setDropdownOpen]  = useState(false)
+  const [searchOpen,    setSearchOpen]    = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const searchRef   = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -27,16 +29,44 @@ export default function Navbar({ onSearch }: NavbarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchRef.current?.focus(), 100)
+  }, [searchOpen])
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (onSearch) onSearch(searchQuery)
+    setSearchOpen(false)
   }
 
   const user = session?.user
 
   return (
     <nav className="sticky top-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
+
+      {/* Mobile search overlay */}
+      {searchOpen && (
+        <div className="absolute inset-0 z-10 bg-gray-950 flex items-center px-4 gap-3 md:hidden">
+          <form onSubmit={handleSearch} className="flex-1">
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Maghanap ng topic..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="input py-2 text-sm bg-gray-900 w-full"
+            />
+          </form>
+          <button
+            onClick={() => { setSearchOpen(false); setSearchQuery(''); onSearch?.('') }}
+            className="text-gray-400 hover:text-white transition-colors shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-3">
 
         {/* Logo */}
         <button
@@ -49,8 +79,8 @@ export default function Navbar({ onSearch }: NavbarProps) {
           </span>
         </button>
 
-        {/* Search bar — takes most of the space */}
-        <form onSubmit={handleSearch} className="flex-1">
+        {/* Search bar — desktop only */}
+        <form onSubmit={handleSearch} className="flex-1 hidden md:block">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
@@ -62,6 +92,17 @@ export default function Navbar({ onSearch }: NavbarProps) {
             />
           </div>
         </form>
+
+        {/* Spacer */}
+        <div className="flex-1 md:hidden" />
+
+        {/* Mobile search icon */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="md:hidden p-2 text-gray-400 hover:text-white transition-colors"
+        >
+          <Search className="w-5 h-5" />
+        </button>
 
         {/* Avatar + dropdown */}
         <div className="relative shrink-0" ref={dropdownRef}>
@@ -85,7 +126,7 @@ export default function Navbar({ onSearch }: NavbarProps) {
             <span className="text-white text-sm font-medium hidden sm:block max-w-[120px] truncate">
               {user?.name}
             </span>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {dropdownOpen && (
@@ -103,7 +144,7 @@ export default function Navbar({ onSearch }: NavbarProps) {
                 className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-gray-800 transition-colors text-sm"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                Mag-logout
               </button>
             </div>
           )}

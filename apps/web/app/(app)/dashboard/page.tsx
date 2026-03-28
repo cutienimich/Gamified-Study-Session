@@ -6,6 +6,7 @@ import { Globe, BookOpen, Users, Trophy, Loader2, Plus, Star, ChevronDown } from
 import Navbar from '@/components/layout/Navbar'
 import TopicCard from '@/components/topic/TopicCard'
 import UploadModal from '@/components/topic/UploadModal'
+import LeaderboardTab from '@/components/social/LeaderboardTab'
 
 type Tab = 'public' | 'my-topics' | 'friends' | 'leaderboard'
 type Sort = 'recent' | 'popular'
@@ -137,15 +138,15 @@ function PublicTab({ searchQuery, onTopicClick, topics, setTopics }: {
   return (
     <div>
       {/* Filter bar */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-
-        {/* Subject pills */}
-        <div className="flex items-center gap-2 flex-wrap flex-1">
+    {/* Filter bar — mobile responsive */}
+      <div className="mb-6">
+        {/* Subject pills — horizontally scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide mb-3">
           {SUBJECTS.map(s => (
             <button
               key={s}
               onClick={() => setSelectedSubject(s)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all duration-200 ${
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all duration-200 whitespace-nowrap shrink-0 ${
                 selectedSubject === s
                   ? 'bg-indigo-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
@@ -156,32 +157,34 @@ function PublicTab({ searchQuery, onTopicClick, topics, setTopics }: {
           ))}
         </div>
 
-        {/* Sort dropdown */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setShowSortMenu(!showSortMenu)}
-            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm px-3 py-1.5 rounded-lg transition-colors"
-          >
-            {SORT_OPTIONS.find(o => o.value === sort)?.label}
-            <ChevronDown className={`w-4 h-4 transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
-          </button>
-          {showSortMenu && (
-            <div className="absolute right-0 top-full mt-1 w-36 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
-              {SORT_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setSort(opt.value); setShowSortMenu(false) }}
-                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                    sort === opt.value
-                      ? 'text-indigo-400 bg-indigo-500/10'
-                      : 'text-gray-300 hover:bg-gray-700'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* Sort dropdown — right aligned */}
+        <div className="flex justify-end">
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {SORT_OPTIONS.find(o => o.value === sort)?.label}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
+            </button>
+            {showSortMenu && (
+              <div className="absolute right-0 top-full mt-1 w-36 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
+                {SORT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setSort(opt.value); setShowSortMenu(false) }}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                      sort === opt.value
+                        ? 'text-indigo-400 bg-indigo-500/10'
+                        : 'text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -339,7 +342,7 @@ function FriendsTab() {
     </div>
   )
 }
-
+/*
 function LeaderboardTab() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -348,4 +351,4 @@ function LeaderboardTab() {
       <p className="text-gray-600 text-sm mt-1">Coming soon</p>
     </div>
   )
-}
+}*/

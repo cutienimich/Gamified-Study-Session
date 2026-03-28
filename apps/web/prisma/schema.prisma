@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 model User {
@@ -19,6 +19,8 @@ model User {
   exp           Int       @default(0)
   level         Int       @default(1)
   fbId          String?   @unique
+  gradeLevel    String?        
+  school        String?        
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
