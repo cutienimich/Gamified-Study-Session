@@ -57,8 +57,8 @@ export default function LandingPage() {
             <Gamepad2 className="w-14 h-14 text-indigo-400" />
           </div>
         </div>
-        <h1 className="text-5xl font-bold text-white mb-4">
-          Ano<span className="text-indigo-500">Tara?</span>
+        <h1 className="text-5xl font-bold text-yellow mb-4">
+          <span className="text-indigo-500">P</span>A<span className="text-indigo-500">L</span>
         </h1>
         <p className="text-gray-400 text-xl mb-8">
           A gamified learning platform where you can study with friends in real-time battles. Upload your notes, create flashcards, and challenge your friends to quizzes.
@@ -113,7 +113,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <p className="relative z-10 text-gray-600 text-sm mt-16">
-        AnoTara? © 2026 · Created by @cutienimich
+        PAL? © 2026 · Created by @cutienimich
       </p>
 
       {/* Float animation */}

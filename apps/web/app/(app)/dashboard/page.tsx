@@ -7,6 +7,7 @@ import Navbar from '@/components/layout/Navbar'
 import TopicCard from '@/components/topic/TopicCard'
 import UploadModal from '@/components/topic/UploadModal'
 import LeaderboardTab from '@/components/social/LeaderboardTab'
+import FriendsTab from '@/components/social/FriendsTab'
 
 type Tab = 'public' | 'my-topics' | 'friends' | 'leaderboard'
 type Sort = 'recent' | 'popular'
@@ -286,7 +287,7 @@ function MyTopicsTab({ session, searchQuery, onTopicClick, topics, setTopics }: 
           className="btn-primary flex items-center gap-2 text-sm"
         >
           <Plus className="w-4 h-4" />
-          Mag-upload
+          Upload
         </button>
       </div>
 
@@ -302,7 +303,7 @@ function MyTopicsTab({ session, searchQuery, onTopicClick, topics, setTopics }: 
           <p className="text-gray-600 text-sm mt-1 mb-6">Upload your first topic to start sharing knowledge.</p>
           <button onClick={() => setShowUpload(true)} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
-            Mag-upload ng unang topic
+            Upload yor first Topic
           </button>
         </div>
       ) : (
@@ -332,8 +333,7 @@ function MyTopicsTab({ session, searchQuery, onTopicClick, topics, setTopics }: 
   )
 }
 
-// ── Placeholder tabs ────────────────────────────────────────────
-function FriendsTab() {
+/*function FriendsTab() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <Users className="w-12 h-12 text-gray-700 mb-4" />
@@ -342,7 +342,7 @@ function FriendsTab() {
     </div>
   )
 }
-/*
+
 function LeaderboardTab() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">

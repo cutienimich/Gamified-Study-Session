@@ -268,7 +268,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
               </button>
 
               {topic._count.cards === 0 && (
-                <p className="text-red-400 text-sm mt-2">Walang cards pa. Mag-add muna ng cards.</p>
+                <p className="text-red-400 text-sm mt-2">No cards available in this topic.</p>
               )}
             </div>
           </div>
@@ -378,7 +378,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
                       : <XCircle    className="w-5 h-5 text-red-400"   />
                     }
                     <span className={`font-semibold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                      {isCorrect ? 'Tama!' : 'Mali!'}
+                      {isCorrect ? 'Correct!' : 'Incorrect!'}
                     </span>
                   </div>
                   {!isCorrect && (

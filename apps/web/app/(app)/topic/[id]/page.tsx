@@ -102,9 +102,9 @@ export default function TopicPage({ params }: { params: { id: string } }) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setTopic(prev => prev ? { ...prev, [field]: value } : prev)
-      toast.success('Na-update!')
+      toast.success('Updated!')
     } catch (err: any) {
-      toast.error(err.message || 'Hindi ma-update')
+      toast.error(err.message || 'Could not update :(')
     }
     setSavingField(null)
     setEditingTitle(false)
@@ -112,30 +112,30 @@ export default function TopicPage({ params }: { params: { id: string } }) {
   }
 
   async function handleDeleteTopic() {
-    if (!confirm(`I-delete ang topic na "${topic?.title}"? Hindi na ito maibabalik.`)) return
+    if (!confirm(`Are you sure to delete the topic "${topic?.title}"? .`)) return
     try {
       const res = await fetch(`/api/topics/${topic!.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
-      toast.success('Na-delete ang topic')
+      toast.success('Topic deleted.')
       router.push('/dashboard')
     } catch {
-      toast.error('Hindi ma-delete ang topic')
+      toast.error('Topic could not be deleted.')
     }
   }
 
   async function handleDeleteCard(cardId: string) {
-    if (!confirm('I-delete ang card na ito?')) return
+    if (!confirm('Delete this card?')) return
     try {
       const res = await fetch(`/api/cards/${cardId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
-      toast.success('Na-delete ang card')
+      toast.success('Card deleted.')
       setTopic(prev => prev ? {
         ...prev,
         cards:  prev.cards.filter(c => c.id !== cardId),
         _count: { cards: prev._count.cards - 1 },
       } : prev)
     } catch {
-      toast.error('Hindi ma-delete ang card')
+      toast.error('Card could not be deleted.')
     }
   }
 
@@ -164,7 +164,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
       <Navbar />
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <p className="text-gray-400">{error || 'Topic not found'}</p>
-        <button onClick={() => router.back()} className="btn-secondary">Bumalik</button>
+        <button onClick={() => router.back()} className="btn-secondary">Return</button>
       </div>
     </div>
   )
@@ -184,7 +184,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Bumalik sa dashboard
+          Return to Dashboard
         </button>
 
         {/* Topic header */}
@@ -337,7 +337,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Mode selector */}
-        <h2 className="text-white font-semibold text-lg mb-4">Piliin ang mode</h2>
+        <h2 className="text-white font-semibold text-lg mb-4">Choose Mode</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
           <button
             onClick={() => router.push(`/topic/${topic.id}/learn`)}
@@ -348,7 +348,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
             </div>
             <div className="text-center">
               <p className="text-white font-semibold text-lg">Learn</p>
-              <p className="text-gray-400 text-sm mt-1">Basahin ang content at aralin ang mga cards</p>
+              <p className="text-gray-400 text-sm mt-1">Learn with flashcards</p>
             </div>
           </button>
 

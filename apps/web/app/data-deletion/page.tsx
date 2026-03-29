@@ -13,7 +13,7 @@ export default function DataDeletionPage() {
         <section>
           <h2 className="text-lg font-semibold text-white mb-2">Option 1 — In-app deletion</h2>
           <ol className="list-decimal list-inside space-y-1 text-gray-400">
-            <li>Log in to AnoTara?</li>
+            <li>Log in to PAL</li>
             <li>Go to your Profile page</li>
             <li>Scroll down and click "Delete Account"</li>
             <li>Confirm deletion</li>

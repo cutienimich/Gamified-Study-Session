@@ -84,9 +84,9 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white">
-            Ano<span className="text-indigo-500">Tara?</span>
+            P<span className="text-indigo-500">A</span>L
           </h1>
-          <p className="text-gray-400 mt-2">Mag-login para magsimula</p>
+          <p className="text-gray-400 mt-2">Login to continue</p>
         </div>
 
         {/* Login card */}
@@ -95,7 +95,7 @@ export default function LoginPage() {
             Welcome back
           </h2>
           <p className="text-gray-400 text-sm text-center mb-8">
-            Gamitin ang iyong Google account para mag-login.
+            Login using your Google account.
           </p>
 
           {/* Google login button */}
@@ -118,14 +118,14 @@ export default function LoginPage() {
           </button>
 
           <p className="text-gray-600 text-xs text-center mt-6">
-            Sa pag-login, sumasang-ayon ka sa aming Terms of Service at Privacy Policy.
+            By logging in. You accept our terms and conditions. 
           </p>
         </div>
 
         {/* Back to home */}
         <p className="text-center mt-6">
           <a href="/" className="text-gray-500 hover:text-gray-300 text-sm transition-colors inline-flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> Bumalik sa home
+            <ArrowLeft className="w-4 h-4" /> Back
           </a>
         </p>
       </div>

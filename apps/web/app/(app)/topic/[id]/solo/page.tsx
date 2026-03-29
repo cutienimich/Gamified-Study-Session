@@ -273,7 +273,7 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
               </button>
 
               {topic._count.cards === 0 && (
-                <p className="text-red-400 text-sm mt-2">Walang cards pa. Mag-add muna ng cards.</p>
+                <p className="text-red-400 text-sm mt-2">No cards available in this topic.</p>
               )}
             </div>
           </div>

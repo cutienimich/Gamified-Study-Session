@@ -7,12 +7,12 @@ export default function PrivacyPage() {
       <div className="space-y-6 text-gray-300">
         <section>
           <h2 className="text-xl font-semibold text-white mb-2">Information We Collect</h2>
-          <p>We collect your name and profile picture from Facebook when you log in. We use this to identify your account and display your profile within the app.</p>
+          <p>We collect your name and profile picture from Google when you log in. We use this to identify your account and display your profile within the app.</p>
         </section>
 
         <section>
           <h2 className="text-xl font-semibold text-white mb-2">How We Use Your Information</h2>
-          <p>Your information is used solely to provide the AnoTara? study platform experience. We do not sell or share your personal data with third parties.</p>
+          <p>Your information is used solely to provide the PAL platform experience. We do not sell or share your personal data with third parties.</p>
         </section>
 
         <section>

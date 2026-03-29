@@ -104,7 +104,7 @@ export default function LearnPage({ params }: { params: { id: string } }) {
 
             {topic.cards.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-800 rounded-2xl">
-                <p className="text-gray-500">Walang cards pa sa topic na ito.</p>
+                <p className="text-gray-500">No cards available in this topic.</p>
               </div>
             ) : (
               topic.cards.map((card, i) => (
