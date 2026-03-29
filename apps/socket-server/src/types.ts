@@ -30,6 +30,8 @@ export interface Player {
   name:        string
   image?:      string
   score:       number
+  exp:         number
+  level:       number
   isHost:      boolean
   isConnected: boolean
 }
