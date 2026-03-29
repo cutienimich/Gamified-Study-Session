@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io'
-import { SOCKET_EVENTS, EXP_CONFIG, calculateExpGain } from '@studyquest/shared'
+import { SOCKET_EVENTS, GameRoom, Player, EXP_CONFIG } from '../types'
 import { getRoom, setRoom, acquireHandRaiseLock, releaseHandRaiseLock } from '../rooms/roomStore'
 
 export function registerGameHandlers(io: Server, socket: Socket) {
