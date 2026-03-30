@@ -3,74 +3,84 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { io, Socket } from 'socket.io-client'
 import {
-  ArrowLeft, Zap, Timer, Play, RotateCcw,
-  CheckCircle, XCircle, Loader2, Star, Home,
-  ChevronRight, Clock,
+  Users, Copy, Play, Hand, CheckCircle, XCircle,
+  Loader2, Crown, Star, Home, RotateCcw, ArrowLeft,
+  Trophy, Zap,
 } from 'lucide-react'
+import Image from 'next/image'
+import toast from 'react-hot-toast'
 import Navbar from '@/components/layout/Navbar'
 
+interface Player {
+  id:          string
+  name:        string
+  image?:      string
+  score:       number
+  exp:         number
+  level:       number
+  isHost:      boolean
+  isConnected: boolean
+}
+
 interface Card {
-  id: string
-  question: string
-  answer: string
-  hint?: string | null
+  id:         string
+  question:   string
+  answer:     string
+  hint?:      string | null
   difficulty: number
-  type: 'IDENTIFICATION' | 'MULTIPLE_CHOICE'
-  choices: string[]
-  order: number
+  cardType:   'IDENTIFICATION' | 'MULTIPLE_CHOICE'
+  choices:    string[]
 }
 
 interface Topic {
-  id: string
-  title: string
-  subject: string
-  cards: Card[]
+  id:     string
+  title:  string
+  cards:  Card[]
   _count: { cards: number }
 }
 
-type GameState = 'start' | 'playing' | 'answer_reveal' | 'results'
+type GamePhase = 'lobby' | 'playing' | 'answer_reveal' | 'results'
 
-const TIMER_OPTIONS = [15, 30, 60]
-
-// Shuffle array
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5)
+const SOCKET_EVENTS = {
+  JOIN_ROOM:      'join-room',
+  LEAVE_ROOM:     'leave-room',
+  ROOM_UPDATE:    'room-update',
+  GAME_START:     'game-start',
+  GAME_END:       'game-end',
+  CARD_SHOWN:     'card-shown',
+  HAND_RAISE:     'hand-raise',
+  HAND_RAISE_ACK: 'hand-raise-ack',
+  ANSWER_SUBMIT:  'answer-submit',
+  ANSWER_RESULT:  'answer-result',
+  PLAYER_JOINED:  'player-joined',
+  PLAYER_LEFT:    'player-left',
 }
 
-function calculateEXP(score: number, total: number, timerOn: boolean, timePerCard: number): number {
-  const accuracy    = score / total
-  const baseEXP     = Math.round(score * 100 * accuracy)
-  const timerBonus  = timerOn ? Math.round(timePerCard * 2) : 0
-  const perfectBonus = score === total ? 200 : 0
-  return baseEXP + timerBonus + perfectBonus
-}
-
-export default function SoloChallengePage({ params }: { params: { id: string } }) {
+export default function ChallengePage({ params }: { params: { id: string } }) {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [topic,     setTopic]     = useState<Topic | null>(null)
-  const [loading,   setLoading]   = useState(true)
-  const [gameState, setGameState] = useState<GameState>('start')
+  const [topic,         setTopic]         = useState<Topic | null>(null)
+  const [loading,       setLoading]       = useState(true)
+  const [phase,         setPhase]         = useState<GamePhase>('lobby')
+  const [roomCode,      setRoomCode]      = useState<string | null>(null)
+  const [players,       setPlayers]       = useState<Player[]>([])
+  const [currentCard,   setCurrentCard]   = useState<Card | null>(null)
+  const [cardIndex,     setCardIndex]     = useState(0)
+  const [totalCards,    setTotalCards]    = useState(0)
+  const [lockedPlayer,  setLockedPlayer]  = useState<{ id: string; name: string } | null>(null)
+  const [answerResult,  setAnswerResult]  = useState<{ correct: boolean; answer: string } | null>(null)
+  const [isAnswering,   setIsAnswering]   = useState(false)
+  const [userAnswer,    setUserAnswer]    = useState('')
+  const [shuffledChoices, setShuffledChoices] = useState<string[]>([])
+  const [gameResults,   setGameResults]   = useState<Player[]>([])
+  const [creating,      setCreating]      = useState(false)
 
-  // Settings
-  const [timerOn,      setTimerOn]      = useState(false)
-  const [timerSeconds, setTimerSeconds] = useState(30)
-
-  // Game state
-  const [cards,        setCards]        = useState<Card[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [score,        setScore]        = useState(0)
-  const [userAnswer,   setUserAnswer]   = useState('')
-  const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
-  const [isCorrect,    setIsCorrect]    = useState<boolean | null>(null)
-  const [timeLeft,     setTimeLeft]     = useState(0)
-  const [expGained,    setExpGained]    = useState(0)
-  const [results,      setResults]      = useState<{ card: Card; correct: boolean; userAnswer: string }[]>([])
-
-  const timerRef   = useRef<NodeJS.Timeout | null>(null)
-  const inputRef   = useRef<HTMLInputElement>(null)
+  const socketRef = useRef<Socket | null>(null)
+  const userId    = (session?.user as any)?.id
+  const isHost    = players.find(p => p.id === userId)?.isHost || false
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login')
@@ -83,98 +93,154 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
         setTopic(data.topic)
+        setTotalCards(data.topic._count.cards)
       } catch { router.back() }
       setLoading(false)
     }
     fetchTopic()
   }, [params.id])
 
-  // Timer logic
+  // Shuffle choices when card changes
   useEffect(() => {
-    if (gameState !== 'playing' || !timerOn) return
-    setTimeLeft(timerSeconds)
+    if (!currentCard || currentCard.cardType !== 'MULTIPLE_CHOICE') {
+      setShuffledChoices([])
+      return
+    }
+    setShuffledChoices([...currentCard.choices].sort(() => Math.random() - 0.5))
+  }, [currentCard?.id])
 
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!)
-          handleTimeUp()
-          return 0
-        }
-        return prev - 1
+  // Connect to socket
+  function connectSocket(code: string) {
+    if (socketRef.current) return
+
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL!, {
+      auth: {
+        userId,
+        userName:  session?.user?.name,
+        userImage: session?.user?.image,
+        token:     'token',
+      },
+      transports: ['websocket'],
+    })
+
+    socket.on('connect', () => {
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, code)
+    })
+
+    socket.on(SOCKET_EVENTS.ROOM_UPDATE, (room: any) => {
+      setPlayers(room.players || [])
+    })
+
+    socket.on(SOCKET_EVENTS.PLAYER_JOINED, (player: Player) => {
+      setPlayers(prev => {
+        const exists = prev.find(p => p.id === player.id)
+        return exists ? prev : [...prev, player]
       })
-    }, 1000)
+      toast(`${player.name} joined!`, { icon: '👋' })
+    })
 
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [currentIndex, gameState, timerOn])
+    socket.on(SOCKET_EVENTS.PLAYER_LEFT, (leftUserId: string) => {
+      setPlayers(prev => prev.filter(p => p.id !== leftUserId))
+    })
 
-  function handleTimeUp() {
-    const card = cards[currentIndex]
-    setIsCorrect(false)
-    setResults(prev => [...prev, { card, correct: false, userAnswer: '(Time up)' }])
-    setGameState('answer_reveal')
+    socket.on(SOCKET_EVENTS.GAME_START, (room: any) => {
+      setPhase('playing')
+      setPlayers(room.players || [])
+    })
+
+    socket.on(SOCKET_EVENTS.CARD_SHOWN, ({ cardIndex }: { cardIndex: number }) => {
+      if (!topic) return
+      const card = topic.cards[cardIndex]
+      if (card) {
+        setCurrentCard(card)
+        setCardIndex(cardIndex)
+        setLockedPlayer(null)
+        setAnswerResult(null)
+        setIsAnswering(false)
+        setUserAnswer('')
+        setPhase('playing')
+      }
+    })
+
+    socket.on(SOCKET_EVENTS.HAND_RAISE_ACK, ({ winnerId, winnerName }: any) => {
+      setLockedPlayer({ id: winnerId, name: winnerName })
+      setIsAnswering(winnerId === userId)
+    })
+
+    socket.on(SOCKET_EVENTS.ANSWER_RESULT, (result: any) => {
+      setAnswerResult({ correct: result.correct, answer: result.correctAnswer })
+      setPlayers(prev => prev.map(p =>
+        p.id === result.playerId
+          ? { ...p, score: p.score + (result.correct ? result.pointsAwarded : 0) }
+          : p
+      ))
+      setPhase('answer_reveal')
+      setIsAnswering(false)
+    })
+
+    socket.on(SOCKET_EVENTS.GAME_END, ({ players: finalPlayers }: any) => {
+      setGameResults(finalPlayers)
+      setPhase('results')
+    })
+
+    socket.on('error', (msg: string) => toast.error(msg))
+
+    socketRef.current = socket
+  }
+
+  async function createRoom() {
+    setCreating(true)
+    try {
+      const res  = await fetch('/api/rooms', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ topicId: params.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setRoomCode(data.room.code)
+      connectSocket(data.room.code)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create room')
+    }
+    setCreating(false)
+  }
+
+  function copyRoomCode() {
+    if (!roomCode) return
+    navigator.clipboard.writeText(roomCode)
+    toast.success('Room code copied!')
   }
 
   function startGame() {
-    if (!topic) return
-    const shuffled = shuffle(topic.cards)
-    setCards(shuffled)
-    setCurrentIndex(0)
-    setScore(0)
-    setResults([])
-    setUserAnswer('')
-    setSelectedChoice(null)
-    setIsCorrect(null)
-    setGameState('playing')
-    setTimeout(() => inputRef.current?.focus(), 100)
+    if (!socketRef.current || !roomCode) return
+    socketRef.current.emit(SOCKET_EVENTS.GAME_START, roomCode)
+  }
+
+  function handleBuzzer() {
+    if (!socketRef.current || !roomCode || lockedPlayer) return
+    socketRef.current.emit(SOCKET_EVENTS.HAND_RAISE, { roomCode, cardIndex })
   }
 
   function submitAnswer(answer: string) {
-    if (timerRef.current) clearInterval(timerRef.current)
-
-    const card    = cards[currentIndex]
-    const correct = answer.trim().toLowerCase() === card.answer.trim().toLowerCase()
-
-    setIsCorrect(correct)
-    if (correct) setScore(prev => prev + 1)
-    setResults(prev => [...prev, { card, correct, userAnswer: answer }])
-    setGameState('answer_reveal')
+    if (!socketRef.current || !roomCode || !currentCard) return
+    socketRef.current.emit(SOCKET_EVENTS.ANSWER_SUBMIT, {
+      roomCode,
+      cardIndex,
+      answer,
+      correctAnswer: currentCard.answer,
+      timeTakenMs:   0,
+    })
+    setIsAnswering(false)
   }
 
-  function nextCard() {
-    const next = currentIndex + 1
-    if (next >= cards.length) {
-      // Game over
-      const exp = calculateEXP(score + (isCorrect ? 0 : 0), cards.length, timerOn, timerSeconds)
-      const finalScore = results.filter(r => r.correct).length + (isCorrect ? 1 : 0)
-      const finalExp   = calculateEXP(finalScore, cards.length, timerOn, timerSeconds)
-      setExpGained(finalExp)
-      setGameState('results')
-      saveScore(finalScore, finalExp)
-    } else {
-      setCurrentIndex(next)
-      setUserAnswer('')
-      setSelectedChoice(null)
-      setIsCorrect(null)
-      setGameState('playing')
-      setTimeout(() => inputRef.current?.focus(), 100)
+  function leaveRoom() {
+    if (socketRef.current && roomCode) {
+      socketRef.current.emit(SOCKET_EVENTS.LEAVE_ROOM, roomCode)
+      socketRef.current.disconnect()
+      socketRef.current = null
     }
-  }
-
-  async function saveScore(finalScore: number, exp: number) {
-    try {
-      await fetch('/api/scores', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topicId:   params.id,
-          points:    finalScore,
-          expGained: exp,
-          timeTaken: timerOn ? timerSeconds * cards.length : 0,
-          mode:      'SOLO',
-        }),
-      })
-    } catch { /* silent */ }
+    router.back()
   }
 
   if (loading) return (
@@ -188,130 +254,139 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
 
   if (!topic) return null
 
-  const currentCard = cards[currentIndex]
-  const progress    = cards.length > 0 ? ((currentIndex) / cards.length) * 100 : 0
-
   return (
     <div className="min-h-screen bg-gray-950">
       <Navbar />
-
       <div className="max-w-2xl mx-auto px-4 py-8">
 
-        {/* ── START SCREEN ── */}
-        {gameState === 'start' && (
+        {/* ── NO ROOM YET ── */}
+        {!roomCode && (
           <div className="animate-fade-in">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 group"
-            >
+            <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8 group">
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
               Back
             </button>
 
-            <div className="card p-8 text-center mb-6">
+            <div className="card p-8 text-center">
               <div className="flex justify-center mb-4">
-                <div className="p-4 bg-yellow-500/10 rounded-2xl border border-yellow-500/20">
-                  <Zap className="w-10 h-10 text-yellow-400" />
+                <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                  <Users className="w-10 h-10 text-amber-400" />
                 </div>
               </div>
               <h1 className="text-2xl font-bold text-white mb-2">{topic.title}</h1>
               <p className="text-gray-400 mb-6">
-                There are{' '}
-                <span className="text-white font-bold">{String(topic._count.cards).padStart(2, '0')}</span>
-                {' '}sets of questions. Play to proceed.
+                Create a room and share the code with your friends!
               </p>
+              <button
+                onClick={createRoom}
+                disabled={creating || topic._count.cards === 0}
+                className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Users className="w-5 h-5" />}
+                {creating ? 'Creating room...' : 'Create Room'}
+              </button>
+              {topic._count.cards === 0 && (
+                <p className="text-red-400 text-sm mt-2">Walang cards pa. Mag-add muna ng cards.</p>
+              )}
+            </div>
+          </div>
+        )}
 
-              {/* Timer toggle */}
-              <div className="bg-gray-800 rounded-2xl p-4 mb-6 text-left">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Timer className="w-4 h-4 text-indigo-400" />
-                    <span className="text-white text-sm font-medium">Timer</span>
-                  </div>
-                  <button
-                    onClick={() => setTimerOn(!timerOn)}
-                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${timerOn ? 'bg-indigo-600' : 'bg-gray-600'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${timerOn ? 'translate-x-6' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-
-                {timerOn && (
-                  <div className="animate-fade-in">
-                    <p className="text-gray-400 text-xs mb-2">Seconds per card:</p>
-                    <div className="flex gap-2">
-                      {TIMER_OPTIONS.map(sec => (
-                        <button
-                          key={sec}
-                          onClick={() => setTimerSeconds(sec)}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
-                            timerSeconds === sec
-                              ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
-                              : 'border-gray-700 text-gray-400 hover:border-gray-500'
-                          }`}
-                        >
-                          {sec}s
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        {/* ── LOBBY ── */}
+        {roomCode && phase === 'lobby' && (
+          <div className="animate-fade-in">
+            <div className="card p-6 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-xl">Waiting Room</h2>
+                <button onClick={leaveRoom} className="text-gray-500 hover:text-red-400 transition-colors text-sm">
+                  Leave
+                </button>
               </div>
 
-              <button
-                onClick={startGame}
-                disabled={topic._count.cards === 0}
-                className="btn-primary w-full py-3 text-lg flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Play className="w-5 h-5" />
-                Start Challenge
-              </button>
+              {/* Room code */}
+              <div className="bg-gray-800 rounded-xl p-4 flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Room Code</p>
+                  <p className="text-white font-mono font-bold text-2xl tracking-widest">{roomCode}</p>
+                </div>
+                <button onClick={copyRoomCode} className="flex items-center gap-2 btn-secondary text-sm">
+                  <Copy className="w-4 h-4" />
+                  Copy
+                </button>
+              </div>
 
-              {topic._count.cards === 0 && (
-                <p className="text-red-400 text-sm mt-2">No cards available in this topic.</p>
+              {/* Players */}
+              <div className="space-y-2 mb-6">
+                <p className="text-gray-500 text-sm">{players.length} player{players.length !== 1 ? 's' : ''} joined</p>
+                {players.map(player => (
+                  <div key={player.id} className="flex items-center gap-3 bg-gray-800 rounded-xl px-4 py-3">
+                    {player.image ? (
+                      <Image src={player.image} alt={player.name} width={32} height={32} className="rounded-full" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">{player.name[0]}</span>
+                      </div>
+                    )}
+                    <span className="text-white text-sm flex-1">{player.name}</span>
+                    {player.isHost && <Crown className="w-4 h-4 text-amber-400" />}
+                    {player.id === userId && <span className="text-indigo-400 text-xs">(You)</span>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Start button — host only */}
+              {isHost && (
+                <button
+                  onClick={startGame}
+                  disabled={players.length < 1}
+                  className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Play className="w-5 h-5" />
+                  Start Game
+                </button>
+              )}
+              {!isHost && (
+                <p className="text-center text-gray-500 text-sm">Waiting for host to start...</p>
               )}
             </div>
           </div>
         )}
 
         {/* ── PLAYING / ANSWER REVEAL ── */}
-        {(gameState === 'playing' || gameState === 'answer_reveal') && currentCard && (
+        {roomCode && (phase === 'playing' || phase === 'answer_reveal') && currentCard && (
           <div className="animate-fade-in">
-            {/* Progress bar */}
-            <div className="mb-6">
+            {/* Progress */}
+            <div className="mb-4">
               <div className="flex justify-between text-sm text-gray-500 mb-2">
-                <span>Card {currentIndex + 1} of {cards.length}</span>
-                <span className="text-green-400">{score} correct</span>
+                <span>Card {cardIndex + 1} of {totalCards}</span>
+                <span>{players.length} players</span>
               </div>
               <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-                  style={{ width: `${progress}%` }}
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
+                  style={{ width: `${((cardIndex) / totalCards) * 100}%` }}
                 />
               </div>
             </div>
 
-            {/* Timer bar */}
-            {timerOn && gameState === 'playing' && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-gray-500" />
-                  <span className={`text-sm font-medium ${timeLeft <= 5 ? 'text-red-400' : 'text-gray-400'}`}>
-                    {timeLeft}s
-                  </span>
+            {/* Scoreboard */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+              {[...players].sort((a, b) => b.score - a.score).map(player => (
+                <div key={player.id} className={`flex items-center gap-2 bg-gray-800 rounded-xl px-3 py-2 shrink-0 ${player.id === userId ? 'border border-indigo-500/40' : ''}`}>
+                  {player.image ? (
+                    <Image src={player.image} alt={player.name} width={24} height={24} className="rounded-full" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center">
+                      <span className="text-white text-xs">{player.name[0]}</span>
+                    </div>
+                  )}
+                  <span className="text-white text-xs font-medium">{player.score}</span>
                 </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ${timeLeft <= 5 ? 'bg-red-500' : 'bg-indigo-500'}`}
-                    style={{ width: `${(timeLeft / timerSeconds) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
 
             {/* Card */}
             <div className="card p-6 mb-4">
-              {/* Difficulty + type */}
               <div className="flex items-center gap-2 mb-4">
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   currentCard.difficulty === 1 ? 'bg-green-500/10 text-green-400' :
@@ -320,134 +395,148 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
                 }`}>
                   {currentCard.difficulty === 1 ? 'Easy' : currentCard.difficulty === 2 ? 'Medium' : 'Hard'}
                 </span>
-                <span className="text-xs text-gray-600">
-                  {currentCard.type === 'MULTIPLE_CHOICE' ? 'Multiple Choice' : 'Identification'}
-                </span>
               </div>
 
-              {/* Question */}
               <p className="text-white text-lg font-medium leading-relaxed mb-6">
                 {currentCard.question}
               </p>
 
-              {/* Answer area */}
-              {gameState === 'playing' && (
-                <>
-                  {(currentCard.type === 'IDENTIFICATION' || !currentCard.type) ? (
-                    <div className="flex gap-2">
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={userAnswer}
-                        onChange={e => setUserAnswer(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && userAnswer.trim()) submitAnswer(userAnswer) }}
-                        placeholder="Type your answer..."
-                        className="input flex-1"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => submitAnswer(userAnswer)}
-                        disabled={!userAnswer.trim()}
-                        className="btn-primary px-4 disabled:opacity-50"
-                      >
-                        Submit
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {shuffle(currentCard.choices).map((choice, i) => (
-                        <button
-                          key={i}
-                          onClick={() => { setSelectedChoice(choice); submitAnswer(choice) }}
-                          className="w-full text-left px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-indigo-500/50 rounded-xl text-white text-sm transition-all"
-                        >
-                          {choice}
-                        </button>
-                      ))}
+              {/* Buzzer status */}
+              {phase === 'playing' && !lockedPlayer && (
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm mb-4">Tap the buzzer to answer!</p>
+                  <button
+                    onClick={handleBuzzer}
+                    className="w-32 h-32 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all duration-150 mx-auto flex items-center justify-center shadow-lg shadow-amber-500/30 text-white font-bold text-lg"
+                  >
+                    <Hand className="w-12 h-12" />
+                  </button>
+                </div>
+              )}
+
+              {/* Locked — someone buzzed in */}
+              {phase === 'playing' && lockedPlayer && (
+                <div className="text-center">
+                  <p className="text-amber-400 font-semibold mb-2">
+                    {lockedPlayer.id === userId ? 'You buzzed in!' : `${lockedPlayer.name} buzzed in!`}
+                  </p>
+
+                  {/* Answer input — only for the locked player */}
+                  {isAnswering && (
+                    <div className="mt-4">
+                      {currentCard.cardType === 'IDENTIFICATION' ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={userAnswer}
+                            onChange={e => setUserAnswer(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && userAnswer.trim()) submitAnswer(userAnswer) }}
+                            placeholder="Type your answer..."
+                            className="input flex-1"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => submitAnswer(userAnswer)}
+                            disabled={!userAnswer.trim()}
+                            className="btn-primary px-4 disabled:opacity-50"
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-left">
+                          {shuffledChoices.map((choice, i) => (
+                            <button
+                              key={i}
+                              onClick={() => submitAnswer(choice)}
+                              className="w-full text-left px-4 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-amber-500/50 rounded-xl text-white text-sm transition-all"
+                            >
+                              <span className="text-gray-500 mr-3">{String.fromCharCode(65 + i)}.</span>
+                              {choice}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
-                </>
+
+                  {!isAnswering && (
+                    <p className="text-gray-400 text-sm mt-2">Waiting for answer...</p>
+                  )}
+                </div>
               )}
 
               {/* Answer reveal */}
-              {gameState === 'answer_reveal' && (
-                <div className={`rounded-xl p-4 ${isCorrect ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+              {phase === 'answer_reveal' && answerResult && (
+                <div className={`rounded-xl p-4 ${answerResult.correct ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    {isCorrect
+                    {answerResult.correct
                       ? <CheckCircle className="w-5 h-5 text-green-400" />
                       : <XCircle    className="w-5 h-5 text-red-400"   />
                     }
-                    <span className={`font-semibold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                      {isCorrect ? 'Correct!' : 'Incorrect!'}
+                    <span className={`font-semibold ${answerResult.correct ? 'text-green-400' : 'text-red-400'}`}>
+                      {answerResult.correct ? 'Tama!' : 'Mali!'}
                     </span>
                   </div>
-                  {!isCorrect && (
+                  {!answerResult.correct && (
                     <p className="text-gray-300 text-sm">
-                      Correct answer: <span className="text-white font-medium">{currentCard.answer}</span>
+                      Correct answer: <span className="text-white font-medium">{answerResult.answer}</span>
                     </p>
+                  )}
+                  {isHost && (
+                    <p className="text-gray-500 text-xs mt-2">Next card loading...</p>
                   )}
                 </div>
               )}
             </div>
-
-            {/* Next button */}
-            {gameState === 'answer_reveal' && (
-              <button
-                onClick={nextCard}
-                className="btn-primary w-full py-3 flex items-center justify-center gap-2 animate-pop"
-              >
-                {currentIndex + 1 >= cards.length ? 'See Results' : 'Next Card'}
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
           </div>
         )}
 
-        {/* ── RESULTS SCREEN ── */}
-        {gameState === 'results' && (
+        {/* ── RESULTS ── */}
+        {phase === 'results' && (
           <div className="animate-fade-in">
             <div className="card p-8 text-center mb-6">
               <div className="flex justify-center mb-4">
-                <div className={`p-4 rounded-2xl border ${
-                  score === cards.length
-                    ? 'bg-yellow-500/10 border-yellow-500/20'
-                    : score >= cards.length / 2
-                      ? 'bg-indigo-500/10 border-indigo-500/20'
-                      : 'bg-gray-800 border-gray-700'
-                }`}>
-                  <Star className={`w-10 h-10 ${
-                    score === cards.length ? 'text-yellow-400' :
-                    score >= cards.length / 2 ? 'text-indigo-400' : 'text-gray-500'
-                  }`} />
+                <div className="p-4 bg-yellow-500/10 rounded-2xl border border-yellow-500/20">
+                  <Trophy className="w-10 h-10 text-yellow-400" />
                 </div>
               </div>
+              <h2 className="text-2xl font-bold text-white mb-6">Game Over!</h2>
 
-              <h2 className="text-2xl font-bold text-white mb-1">
-                {score === cards.length ? 'Perfect Score! 🎉' :
-                 score >= cards.length / 2 ? 'Good job!' : 'Keep practicing!'}
-              </h2>
-
-              <p className="text-gray-400 mb-6">
-                {score} out of {cards.length} correct
-              </p>
-
-              {/* Score breakdown */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-green-400 font-bold text-xl">{score}</p>
-                  <p className="text-gray-500 text-xs">Correct</p>
-                </div>
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-red-400 font-bold text-xl">{cards.length - score}</p>
-                  <p className="text-gray-500 text-xs">Wrong</p>
-                </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                  <p className="text-amber-400 font-bold text-xl">+{expGained}</p>
-                  <p className="text-gray-500 text-xs">EXP</p>
-                </div>
+              {/* Final scores */}
+              <div className="space-y-3 mb-6">
+                {[...gameResults].sort((a, b) => b.score - a.score).map((player, index) => (
+                  <div
+                    key={player.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl ${
+                      index === 0 ? 'bg-yellow-500/10 border border-yellow-500/20' :
+                      player.id === userId ? 'bg-indigo-500/10 border border-indigo-500/20' :
+                      'bg-gray-800'
+                    }`}
+                  >
+                    <span className={`font-bold w-8 text-center ${
+                      index === 0 ? 'text-yellow-400' :
+                      index === 1 ? 'text-gray-300' :
+                      index === 2 ? 'text-amber-500' : 'text-gray-500'
+                    }`}>
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                    </span>
+                    {player.image ? (
+                      <Image src={player.image} alt={player.name} width={32} height={32} className="rounded-full" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">{player.name[0]}</span>
+                      </div>
+                    )}
+                    <span className="text-white text-sm flex-1 text-left">
+                      {player.name}
+                      {player.id === userId && <span className="text-indigo-400 text-xs ml-1">(You)</span>}
+                    </span>
+                    <span className="text-amber-400 font-bold">{player.score} pts</span>
+                  </div>
+                ))}
               </div>
 
-              {/* Action buttons */}
               <div className="flex gap-3">
                 <button
                   onClick={() => router.push('/dashboard')}
@@ -456,43 +545,21 @@ export default function SoloChallengePage({ params }: { params: { id: string } }
                   <Home className="w-4 h-4" />
                   Exit
                 </button>
-                <button
-                  onClick={() => {
-                    setGameState('start')
-                    setScore(0)
-                    setResults([])
-                    setCurrentIndex(0)
-                  }}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Play Again
-                </button>
+                {isHost && (
+                  <button
+                    onClick={() => {
+                      setPhase('lobby')
+                      setGameResults([])
+                      setCurrentCard(null)
+                      setCardIndex(0)
+                    }}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Play Again
+                  </button>
+                )}
               </div>
-            </div>
-
-            {/* Results breakdown */}
-            <h3 className="text-white font-semibold mb-3">Review</h3>
-            <div className="space-y-2">
-              {results.map((r, i) => (
-                <div key={i} className={`card p-4 border ${r.correct ? 'border-green-500/20' : 'border-red-500/20'}`}>
-                  <div className="flex items-start gap-3">
-                    {r.correct
-                      ? <CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                      : <XCircle    className="w-4 h-4 text-red-400 shrink-0 mt-0.5"   />
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm">{r.card.question}</p>
-                      {!r.correct && (
-                        <div className="mt-1 space-y-0.5">
-                          <p className="text-red-400 text-xs">Your answer: {r.userAnswer}</p>
-                          <p className="text-green-400 text-xs">Correct: {r.card.answer}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
